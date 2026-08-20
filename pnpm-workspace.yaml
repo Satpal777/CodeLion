@@ -2,10 +2,6 @@ packages:
   - apps/*
   - packages/*
 
-onlyBuiltDependencies:
-  - esbuild
-  - sharp
-  - protobufjs
 
 minimumReleaseAgeExclude:
   - '@ai-sdk/gateway@4.0.56'
