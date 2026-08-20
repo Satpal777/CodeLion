@@ -236,11 +236,13 @@ export class TypeScriptAdapter implements LanguageAdapter {
     return {
       rootFiles: paths.filter((p) => !p.includes("/")),
       manifests,
-      packageManager: paths.some((p) => p.includes("pnpm-lock.yaml"))
-        ? "pnpm"
-        : paths.some((p) => p.includes("yarn.lock"))
-          ? "yarn"
-          : "npm",
+      packageManager: paths.some((p) => p.includes("bun.lock") || p.includes("bun.lockb"))
+        ? "bun"
+        : paths.some((p) => p.includes("pnpm-lock.yaml"))
+          ? "pnpm"
+          : paths.some((p) => p.includes("yarn.lock"))
+            ? "yarn"
+            : "npm",
       frameworks,
     };
   }

@@ -29,6 +29,7 @@ const IGNORED_FILENAMES = new Set([
   "package-lock.json",
   "pnpm-lock.yaml",
   "yarn.lock",
+  "bun.lock",
   "bun.lockb",
   "cargo.lock",
   "gemfile.lock",

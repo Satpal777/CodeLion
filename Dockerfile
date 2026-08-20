@@ -1,18 +1,15 @@
 # -----------------------------------------------------------------------------
-# Stage 1: Base image with pnpm enabled
+# Stage 1: Base image with Bun
 # -----------------------------------------------------------------------------
-FROM node:22-alpine AS base
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
+FROM oven/bun:1.3-alpine AS base
 RUN apk add --no-cache libc6-compat
-RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # -----------------------------------------------------------------------------
 # Stage 2: Prune workspace with Turbo for @reviewer/web
 # -----------------------------------------------------------------------------
 FROM base AS pruner
 WORKDIR /app
-RUN pnpm install -g turbo
+RUN bun add -g turbo
 COPY . .
 RUN turbo prune @reviewer/web --docker
 
@@ -22,12 +19,11 @@ RUN turbo prune @reviewer/web --docker
 FROM base AS installer
 WORKDIR /app
 
-# First copy dependency manifests from pruned output for layer caching
+# Copy dependency manifests from pruned output for layer caching
 COPY --from=pruner /app/out/json/ .
-COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
-COPY --from=pruner /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=pruner /app/out/bun.lock* /app/out/bun.lockb* ./
 
-RUN pnpm install --frozen-lockfile
+RUN bun install --frozen-lockfile
 
 # Copy full source code from pruned output
 COPY --from=pruner /app/out/full/ .
@@ -35,12 +31,12 @@ COPY --from=pruner /app/out/full/ .
 # Build all dependencies and Next.js standalone application
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-RUN pnpm build
+RUN bun run build
 
 # -----------------------------------------------------------------------------
 # Stage 4: Production Runner
 # -----------------------------------------------------------------------------
-FROM node:22-alpine AS runner
+FROM oven/bun:1.3-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -62,4 +58,4 @@ USER nextjs
 
 EXPOSE 3000
 
-CMD ["node", "apps/web/server.js"]
+CMD ["bun", "apps/web/server.js"]

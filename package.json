@@ -2,13 +2,14 @@
   "name": "self-learning-reviewer",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@11.19.0",
-  "engines": {
-    "node": ">=24.12.0"
-  },
+  "packageManager": "bun@1.3.14",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "link-env": "node scripts/link-env.mjs",
-    "db:init": "node scripts/init-db.mjs",
+    "link-env": "bun scripts/link-env.mjs",
+    "db:init": "bun scripts/init-db.mjs",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
@@ -16,9 +17,9 @@
     "test": "turbo run test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "db:generate": "pnpm --filter @reviewer/db db:generate",
-    "db:push": "node scripts/init-db.mjs",
-    "db:studio": "pnpm --filter @reviewer/db db:studio"
+    "db:generate": "bun --filter @reviewer/db db:generate",
+    "db:push": "bun scripts/init-db.mjs",
+    "db:studio": "bun --filter @reviewer/db db:studio"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

@@ -70,7 +70,7 @@ async function main() {
 
   console.log("\n2. Creating tables and indexes with Drizzle Kit...");
   try {
-    execSync("pnpm --filter @reviewer/db db:push", { stdio: "inherit" });
+    execSync("bun --filter @reviewer/db db:push", { stdio: "inherit" });
     console.log("   ✓ Schema tables and relations pushed successfully.");
   } catch (err) {
     console.error("   ❌ Schema push failed:", err.message);
