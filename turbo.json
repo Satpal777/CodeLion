@@ -1,0 +1,48 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
+  "globalEnv": [
+    "APP_URL",
+    "NODE_ENV",
+    "DATABASE_URL",
+    "SESSION_COOKIE_NAME",
+    "SESSION_TTL_DAYS",
+    "DATA_ENCRYPTION_KEY",
+    "GITHUB_APP_ID",
+    "GITHUB_APP_SLUG",
+    "GITHUB_APP_PRIVATE_KEY_BASE64",
+    "GITHUB_WEBHOOK_SECRET",
+    "GITHUB_APP_CLIENT_ID",
+    "GITHUB_APP_CLIENT_SECRET",
+    "AI_GATEWAY_API_KEY",
+    "AI_REVIEW_MODEL",
+    "AI_SUMMARY_MODEL",
+    "AI_EMBEDDING_MODEL",
+    "INNGEST_DEV",
+    "INNGEST_EVENT_KEY",
+    "INNGEST_SIGNING_KEY",
+    "MAX_INDEX_FILE_BYTES",
+    "MAX_PR_CHANGED_LINES",
+    "REVIEW_CONFIDENCE_THRESHOLD"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^lint"]
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
+    }
+  }
+}

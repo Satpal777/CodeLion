@@ -1,0 +1,28 @@
+{
+  "name": "@reviewer/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@reviewer/ai": "workspace:*",
+    "@reviewer/db": "workspace:*",
+    "@trpc/server": "^11.18.0",
+    "drizzle-orm": "^0.45.1",
+    "trpc-to-openapi": "^3.3.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.0"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "self-learning-reviewer",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "link-env": "node scripts/link-env.mjs",
+    "db:init": "node scripts/init-db.mjs",
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "pnpm --filter @reviewer/db db:generate",
+    "db:push": "node scripts/init-db.mjs",
+    "db:studio": "pnpm --filter @reviewer/db db:studio"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "dotenv-cli": "^8.0.0",
+    "prettier": "^3.6.2",
+    "turbo": "^2.6.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.0"
+  }
+}

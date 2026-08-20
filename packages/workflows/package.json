@@ -1,0 +1,30 @@
+{
+  "name": "@reviewer/workflows",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@reviewer/ai": "workspace:*",
+    "@reviewer/config": "workspace:*",
+    "@reviewer/db": "workspace:*",
+    "@reviewer/github": "workspace:*",
+    "dotenv": "^16.4.7",
+    "drizzle-orm": "^0.45.1",
+    "inngest": "^4.0.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.0"
+  }
+}

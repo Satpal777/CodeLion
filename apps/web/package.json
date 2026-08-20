@@ -1,0 +1,41 @@
+{
+  "name": "@reviewer/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@reviewer/api": "workspace:*",
+    "@reviewer/config": "workspace:*",
+    "@reviewer/db": "workspace:*",
+    "@reviewer/github": "workspace:*",
+    "@reviewer/workflows": "workspace:*",
+    "@trpc/server": "^11.18.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "drizzle-orm": "^0.45.1",
+    "inngest": "^4.0.0",
+    "lucide-react": "^0.468.0",
+    "next": "16.3.1",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "tailwind-merge": "^3.3.1",
+    "trpc-to-openapi": "^3.3.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.14",
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "tailwindcss": "^4.1.14",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.0"
+  }
+}
