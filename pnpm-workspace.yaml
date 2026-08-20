@@ -12,6 +12,3 @@ minimumReleaseAgeExclude:
   - '@ai-sdk/provider-utils@5.0.28'
   - ai@7.0.70
 
-allowBuilds:
-  esbuild: set this to true or false
-  protobufjs: set this to true or false
