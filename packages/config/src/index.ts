@@ -66,6 +66,7 @@ const serverEnvSchema = z.object({
   MAX_INDEX_FILE_BYTES: z.coerce.number().int().positive().default(500_000),
   MAX_PR_CHANGED_LINES: z.coerce.number().int().positive().default(5_000),
   REVIEW_CONFIDENCE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.78),
+  RECONCILE_OUTBOX_CRON: stringOrFallback("0 */6 * * *"),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

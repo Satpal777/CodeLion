@@ -1,14 +1,23 @@
+import "dotenv/config";
 import { getDatabase, markOutboxPublished, workflowOutbox } from "@reviewer/db";
 import { and, asc, eq, lte } from "drizzle-orm";
 import { cron } from "inngest";
 import { inngest } from "./client";
 import { createWorkflowEvent } from "./events";
 
+// Defaults to every 6 hours; override with RECONCILE_OUTBOX_CRON env var.
+// Examples:
+//   "*/1 * * * *"   — every minute (dev)
+//   "*/15 * * * *"  — every 15 minutes
+//   "0 */6 * * *"   — every 6 hours (production default)
+//   "0 */1 * * *"   — every hour
+const outboxCron = process.env.RECONCILE_OUTBOX_CRON ?? "0 */6 * * *";
+
 export const reconcileWorkflowOutbox = inngest.createFunction(
   {
     id: "reconcile-workflow-outbox",
     retries: 3,
-    triggers: [cron("*/1 * * * *")],
+    triggers: [cron(outboxCron)],
   },
   async ({ step }) => {
     const database = getDatabase();
