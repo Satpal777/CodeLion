@@ -33,8 +33,8 @@ The current application never pretends to perform an unimplemented write action.
 
 ## 2. Prerequisites
 
-- Node.js 24 or newer
-- pnpm 11.19 or newer
+- Node.js 24 or newer (or Bun runtime)
+- Bun 1.2 or newer
 - A Neon Postgres project
 - A GitHub App with user authorization for sign-in, repository access, and review publishing
 - A Vercel AI Gateway key usable by the configured models
@@ -43,8 +43,7 @@ The current application never pretends to perform an unimplemented write action.
 Check local versions:
 
 ```bash
-node --version
-pnpm --version
+bun --version
 ```
 
 ## 3. Install the workspace
@@ -52,11 +51,11 @@ pnpm --version
 From the repository root:
 
 ```bash
-pnpm install
+bun install
 cp .env.example .env.local
 ```
 
-If package installation receives a registry `403`, the network or registry mirror running the command is blocking npm. Use an environment that permits `https://registry.npmjs.org`, then rerun `pnpm install`. No private package registry is required.
+If package installation receives a registry `403`, the network or registry mirror running the command is blocking npm. Use an environment that permits `https://registry.npmjs.org`, then rerun `bun install`. No private package registry is required.
 
 ## 4. Create the Neon database
 
@@ -71,13 +70,13 @@ CREATE EXTENSION IF NOT EXISTS vector;
 4. Apply the schema:
 
 ```bash
-pnpm db:push
+bun db:push
 ```
 
 For a production release, generate and review a migration instead of using schema push:
 
 ```bash
-pnpm db:generate
+bun db:generate
 ```
 
 Commit the generated migration and apply it through the deployment pipeline. Never run unreviewed schema push against production.
@@ -204,7 +203,7 @@ INNGEST_DEV=1
 Start the application in one terminal:
 
 ```bash
-pnpm dev
+bun dev
 ```
 
 Root scripts load the root `.env.local` through `dotenv-cli` before Turborepo starts package tasks. Do not duplicate secrets into package directories.
@@ -212,7 +211,7 @@ Root scripts load the root `.env.local` through `dotenv-cli` before Turborepo st
 Start the Inngest Dev Server in another terminal:
 
 ```bash
-pnpm dlx inngest-cli@latest dev -u http://localhost:3000/api/inngest
+bunx inngest-cli@latest dev -u http://localhost:3000/api/inngest
 ```
 
 The Inngest dashboard normally opens at `http://localhost:8288`. Confirm these functions are registered:
@@ -272,7 +271,7 @@ openssl rand -base64 32
 After the database, OAuth App, GitHub App, AI Gateway, and Inngest configuration are ready:
 
 ```bash
-pnpm dev
+bun dev
 ```
 
 Open `http://localhost:3000`.
@@ -302,17 +301,17 @@ The API documentation is available at:
 Run all checks before committing:
 
 ```bash
-pnpm format:check
-pnpm typecheck
-pnpm test
-pnpm build
+bun run format:check
+bun run typecheck
+bun run test
+bun run build
 ```
 
 Focused tests:
 
 ```bash
-pnpm --filter @reviewer/github test
-pnpm --filter @reviewer/ai test
+bun --filter @reviewer/github test
+bun --filter @reviewer/ai test
 ```
 
 The existing tests cover raw webhook signature validation, webhook normalization, major-language detection, chunk stability, finding confidence/diff validation, memory promotion, unsafe-memory rejection, and security precedence.

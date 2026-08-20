@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     httpOnly: true,
     secure: env.NODE_ENV === "production",
     sameSite: "lax",
-    path: "/api/auth/github/callback",
+    path: "/",
     maxAge: 10 * 60,
   });
   return response;

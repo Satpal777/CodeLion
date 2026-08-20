@@ -19,11 +19,11 @@ Start with [manual.md](./manual.md). Product scope and design decisions live in 
 ## Commands
 
 ```bash
-pnpm install
-pnpm db:push
-pnpm dev
-pnpm test
-pnpm typecheck
+bun install
+bun db:push
+bun dev
+bun test
+bun typecheck
 ```
 
 This repository is an executable foundation for the single-release plan. Any incomplete production capability is called out explicitly in `manual.md`; unsafe GitHub write actions are never silently simulated.
