@@ -47,4 +47,6 @@ export interface ReviewResult extends Omit<ModelReview, "findings"> {
   decision: ReviewDecision;
   findings: ValidatedFinding[];
   suppressedFindingCount: number;
+  /** The exact model name that generated this review (e.g. "gemini-2.5-flash"). */
+  modelUsed?: string;
 }
