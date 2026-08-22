@@ -296,25 +296,52 @@ export async function executeStructuredTask<TSchema extends z.ZodTypeAny>(
         const modelInstance = provider(modelName);
 
         if (options.schema) {
-          const result = await generateText({
-            model: modelInstance,
-            output: Output.object({ schema: options.schema }),
-            ...(options.system ? { system: options.system } : {}),
-            prompt: options.prompt,
-            temperature: options.temperature ?? 0.2,
-          });
-          const tokens = extractUsageTokens(result.usage);
-          recordSpanAttributes({
-            "gen_ai.usage.input_tokens":  tokens.promptTokens ?? 0,
-            "gen_ai.usage.output_tokens": tokens.completionTokens ?? 0,
-          });
-          return {
-            output: result.output as z.infer<TSchema>,
-            modelUsed: modelName,
-            fallbackCount: 0,
-            ...(tokens.promptTokens !== undefined ? { promptTokens: tokens.promptTokens } : {}),
-            ...(tokens.completionTokens !== undefined ? { completionTokens: tokens.completionTokens } : {}),
-          };
+          try {
+            const result = await generateText({
+              model: modelInstance,
+              output: Output.object({ schema: options.schema }),
+              ...(options.system ? { system: options.system } : {}),
+              prompt: options.prompt,
+              temperature: options.temperature ?? 0.2,
+            });
+            const tokens = extractUsageTokens(result.usage);
+            recordSpanAttributes({
+              "gen_ai.usage.input_tokens":  tokens.promptTokens ?? 0,
+              "gen_ai.usage.output_tokens": tokens.completionTokens ?? 0,
+            });
+            return {
+              output: result.output as z.infer<TSchema>,
+              modelUsed: modelName,
+              fallbackCount: 0,
+              ...(tokens.promptTokens !== undefined ? { promptTokens: tokens.promptTokens } : {}),
+              ...(tokens.completionTokens !== undefined ? { completionTokens: tokens.completionTokens } : {}),
+            };
+          } catch (objErr: unknown) {
+            // Fallback for models (e.g. x-preview-f-free) that don't support native structured JSON mode:
+            // Prompt the model for raw JSON and parse it manually.
+            const jsonPrompt = `${options.prompt}\n\nIMPORTANT: You MUST respond ONLY with a valid raw JSON object. Do not wrap in markdown or add explanations.`;
+            const textResult = await generateText({
+              model: modelInstance,
+              ...(options.system ? { system: options.system } : {}),
+              prompt: jsonPrompt,
+              temperature: options.temperature ?? 0.1,
+            });
+            const cleaned = textResult.text.replace(/```json\s*|\s*```/g, "").trim();
+            const parsedJson = JSON.parse(cleaned);
+            const validatedOutput = options.schema.parse(parsedJson);
+            const tokens = extractUsageTokens(textResult.usage);
+            recordSpanAttributes({
+              "gen_ai.usage.input_tokens":  tokens.promptTokens ?? 0,
+              "gen_ai.usage.output_tokens": tokens.completionTokens ?? 0,
+            });
+            return {
+              output: validatedOutput as z.infer<TSchema>,
+              modelUsed: modelName,
+              fallbackCount: 0,
+              ...(tokens.promptTokens !== undefined ? { promptTokens: tokens.promptTokens } : {}),
+              ...(tokens.completionTokens !== undefined ? { completionTokens: tokens.completionTokens } : {}),
+            };
+          }
         } else {
           const result = await generateText({
             model: modelInstance,
