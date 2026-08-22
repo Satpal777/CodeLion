@@ -17,6 +17,7 @@
     "@reviewer/config": "workspace:*",
     "@reviewer/db": "workspace:*",
     "@reviewer/github": "workspace:*",
+    "@opentelemetry/api": "^1.9.0",
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.45.1",
     "inngest": "^4.0.0",

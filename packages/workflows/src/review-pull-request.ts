@@ -412,6 +412,8 @@ export const reviewPullRequestWorkflow = inngest.createFunction(
       decision: result.decision,
       findingCount: result.findings.length,
       reused: published.reused,
+      modelUsed: result.modelUsed ?? env.AI_REVIEW_MODEL,
     };
   },
 );
+

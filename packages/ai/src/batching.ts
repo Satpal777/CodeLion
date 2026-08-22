@@ -199,6 +199,9 @@ export function aggregateBatchReviewResults(
         }).`
       : summaries[0] ?? "Review completed.";
 
+  // Collect the model names used across all batches (deduplicated)
+  const modelNames = [...new Set(batchResults.map((r) => r.modelUsed).filter(Boolean))];
+
   return {
     decision,
     summary: batchSummary,
@@ -208,5 +211,6 @@ export function aggregateBatchReviewResults(
     testRecommendations: Array.from(testRecommendationsSet).slice(0, 10),
     uncertainty: Array.from(uncertaintySet).slice(0, 10),
     suppressedFindingCount: totalSuppressed,
+    ...(modelNames.length > 0 ? { modelUsed: modelNames.join(", ") } : {}),
   };
 }

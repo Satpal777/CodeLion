@@ -17,3 +17,4 @@ export * from "./indexer/adapters/base";
 export * from "./indexer/adapters/registry";
 export * from "./retrieval/hybrid";
 export * from "./observability/usage-tracker";
+export * from "./observability/otel";

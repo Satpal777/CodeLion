@@ -3,6 +3,7 @@ import { createGoogleGenerativeAI, type GoogleGenerativeAIProvider } from "@ai-s
 import { createOpenAI, type OpenAIProvider } from '@ai-sdk/openai';
 import { generateText, Output } from "ai";
 import { z } from "zod";
+import { withAISpan, recordSpanAttributes } from "./observability/otel";
 
 export const GEMINI_MODEL_CASCADE = [
   "gemini-3.7-flash",
@@ -106,6 +107,8 @@ export interface ModelExecutionResult<T> {
   output: T;
   modelUsed: string;
   fallbackCount: number;
+  promptTokens?: number;
+  completionTokens?: number;
 }
 
 /**
@@ -113,6 +116,17 @@ export interface ModelExecutionResult<T> {
  * Iterates through the hierarchy of Gemini models (starting from gemini-3.7-flash down to lower models).
  * If a model fails (e.g. 404 unsupported, quota, rate limit, server error), it falls back to the next model in the list.
  */
+function extractUsageTokens(usage: unknown): { promptTokens?: number; completionTokens?: number } {
+  if (!usage || typeof usage !== "object") return {};
+  const u = usage as Record<string, unknown>;
+  const promptTokens = typeof u.promptTokens === "number" ? u.promptTokens : typeof u.inputTokens === "number" ? u.inputTokens : undefined;
+  const completionTokens = typeof u.completionTokens === "number" ? u.completionTokens : typeof u.outputTokens === "number" ? u.outputTokens : undefined;
+  return {
+    ...(promptTokens !== undefined ? { promptTokens } : {}),
+    ...(completionTokens !== undefined ? { completionTokens } : {}),
+  };
+}
+
 export async function executeStructuredGeminiTask<TSchema extends z.ZodTypeAny>(
   options: ModelExecutionOptions<TSchema>,
 ): Promise<ModelExecutionResult<z.infer<TSchema>>> {
@@ -120,56 +134,82 @@ export async function executeStructuredGeminiTask<TSchema extends z.ZodTypeAny>(
     ? options.models
     : GEMINI_MODEL_CASCADE;
 
-  const google = createGoogleProvider(options.apiKey);
-  const errors: Array<{ model: string; error: unknown }> = [];
+  const primaryModel = String(modelsToTry[0] ?? "gemini-3.7-flash");
 
-  for (let i = 0; i < modelsToTry.length; i += 1) {
-    const modelName = modelsToTry[i]!;
-    try {
-      const modelInstance = google(modelName as any);
+  return withAISpan({ operation: "structured-review", model: primaryModel, provider: "google-gemini" }, async (span) => {
+    const google = createGoogleProvider(options.apiKey);
+    const errors: Array<{ model: string; error: unknown }> = [];
 
-      if (options.schema) {
-        const result = await generateText({
-          model: modelInstance,
-          output: Output.object({ schema: options.schema }),
-          ...(options.system ? { system: options.system } : {}),
-          prompt: options.prompt,
-          temperature: options.temperature ?? 0.2,
-        });
+    for (let i = 0; i < modelsToTry.length; i += 1) {
+      const modelName = modelsToTry[i]!;
 
-        return {
-          output: result.output as z.infer<TSchema>,
-          modelUsed: modelName,
-          fallbackCount: i,
-        };
-      } else {
-        const result = await generateText({
-          model: modelInstance,
-          ...(options.system ? { system: options.system } : {}),
-          prompt: options.prompt,
-          temperature: options.temperature ?? 0.2,
-        });
+      // Record each attempt as a span event for fallback visibility
+      if (i > 0) span.addEvent("fallback_attempt", { "model": modelName, "attempt": i });
 
-        return {
-          output: result.text as z.infer<TSchema>,
-          modelUsed: modelName,
-          fallbackCount: i,
-        };
+      try {
+        const modelInstance = google(modelName as any);
+
+        if (options.schema) {
+          const result = await generateText({
+            model: modelInstance,
+            output: Output.object({ schema: options.schema }),
+            ...(options.system ? { system: options.system } : {}),
+            prompt: options.prompt,
+            temperature: options.temperature ?? 0.2,
+          });
+
+          const tokens = extractUsageTokens(result.usage);
+          recordSpanAttributes({
+            "gen_ai.usage.input_tokens":  tokens.promptTokens ?? 0,
+            "gen_ai.usage.output_tokens": tokens.completionTokens ?? 0,
+          });
+
+          return {
+            output: result.output as z.infer<TSchema>,
+            modelUsed: modelName,
+            fallbackCount: i,
+            ...(tokens.promptTokens !== undefined ? { promptTokens: tokens.promptTokens } : {}),
+            ...(tokens.completionTokens !== undefined ? { completionTokens: tokens.completionTokens } : {}),
+          };
+        } else {
+          const result = await generateText({
+            model: modelInstance,
+            ...(options.system ? { system: options.system } : {}),
+            prompt: options.prompt,
+            temperature: options.temperature ?? 0.2,
+          });
+
+          const tokens = extractUsageTokens(result.usage);
+          recordSpanAttributes({
+            "gen_ai.usage.input_tokens":  tokens.promptTokens ?? 0,
+            "gen_ai.usage.output_tokens": tokens.completionTokens ?? 0,
+          });
+
+          return {
+            output: result.text as z.infer<TSchema>,
+            modelUsed: modelName,
+            fallbackCount: i,
+            ...(tokens.promptTokens !== undefined ? { promptTokens: tokens.promptTokens } : {}),
+            ...(tokens.completionTokens !== undefined ? { completionTokens: tokens.completionTokens } : {}),
+          };
+        }
+      } catch (err: unknown) {
+        errors.push({ model: modelName, error: err });
+        const message = err instanceof Error ? err.message : String(err);
+        span.addEvent("model_error", { "model": modelName, "error": message });
+        console.warn(
+          `[Gemini Fallback] Model '${modelName}' failed (${message}). Falling back to next model...`,
+        );
       }
-    } catch (err: unknown) {
-      errors.push({ model: modelName, error: err });
-      const message = err instanceof Error ? err.message : String(err);
-      console.warn(
-        `[Gemini Fallback] Model '${modelName}' failed (${message}). Falling back to next model...`,
-      );
     }
-  }
 
-  const errorDetails = errors
-    .map((e) => `[${e.model}]: ${e.error instanceof Error ? e.error.message : String(e.error)}`)
-    .join("\n");
-  throw new Error(`All Gemini models in fallback cascade failed:\n${errorDetails}`);
+    const errorDetails = errors
+      .map((e) => `[${e.model}]: ${e.error instanceof Error ? e.error.message : String(e.error)}`)
+      .join("\n");
+    throw new Error(`All Gemini models in fallback cascade failed:\n${errorDetails}`);
+  });
 }
+
 
 /**
  * Text generation with model fallback cascade.
@@ -181,38 +221,53 @@ export async function executeTextGeminiTask(
     ? options.models
     : GEMINI_MODEL_CASCADE;
 
-  const google = createGoogleProvider(options.apiKey);
-  const errors: Array<{ model: string; error: unknown }> = [];
+  const primaryModel = String(modelsToTry[0] ?? "gemini-3.7-flash");
 
-  for (let i = 0; i < modelsToTry.length; i += 1) {
-    const modelName = modelsToTry[i]!;
-    try {
-      const modelInstance = google(modelName as any);
-      const result = await generateText({
-        model: modelInstance,
-        ...(options.system ? { system: options.system } : {}),
-        prompt: options.prompt,
-        temperature: options.temperature ?? 0.2,
-      });
+  return withAISpan({ operation: "text-task", model: primaryModel, provider: "google-gemini" }, async (span) => {
+    const google = createGoogleProvider(options.apiKey);
+    const errors: Array<{ model: string; error: unknown }> = [];
 
-      return {
-        output: result.text,
-        modelUsed: modelName,
-        fallbackCount: i,
-      };
-    } catch (err: unknown) {
-      errors.push({ model: modelName, error: err });
-      const message = err instanceof Error ? err.message : String(err);
-      console.warn(
-        `[Gemini Fallback] Model '${modelName}' failed (${message}). Falling back to next model...`,
-      );
+    for (let i = 0; i < modelsToTry.length; i += 1) {
+      const modelName = modelsToTry[i]!;
+      if (i > 0) span.addEvent("fallback_attempt", { "model": modelName, "attempt": i });
+
+      try {
+        const modelInstance = google(modelName as any);
+        const result = await generateText({
+          model: modelInstance,
+          ...(options.system ? { system: options.system } : {}),
+          prompt: options.prompt,
+          temperature: options.temperature ?? 0.2,
+        });
+
+        const tokens = extractUsageTokens(result.usage);
+        recordSpanAttributes({
+          "gen_ai.usage.input_tokens":  tokens.promptTokens ?? 0,
+          "gen_ai.usage.output_tokens": tokens.completionTokens ?? 0,
+        });
+
+        return {
+          output: result.text,
+          modelUsed: modelName,
+          fallbackCount: i,
+          ...(tokens.promptTokens !== undefined ? { promptTokens: tokens.promptTokens } : {}),
+          ...(tokens.completionTokens !== undefined ? { completionTokens: tokens.completionTokens } : {}),
+        };
+      } catch (err: unknown) {
+        errors.push({ model: modelName, error: err });
+        const message = err instanceof Error ? err.message : String(err);
+        span.addEvent("model_error", { "model": modelName, "error": message });
+        console.warn(
+          `[Gemini Fallback] Model '${modelName}' failed (${message}). Falling back to next model...`,
+        );
+      }
     }
-  }
 
-  const errorDetails = errors
-    .map((e) => `[${e.model}]: ${e.error instanceof Error ? e.error.message : String(e.error)}`)
-    .join("\n");
-  throw new Error(`All Gemini models in fallback cascade failed:\n${errorDetails}`);
+    const errorDetails = errors
+      .map((e) => `[${e.model}]: ${e.error instanceof Error ? e.error.message : String(e.error)}`)
+      .join("\n");
+    throw new Error(`All Gemini models in fallback cascade failed:\n${errorDetails}`);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -235,27 +290,51 @@ export async function executeStructuredTask<TSchema extends z.ZodTypeAny>(
   if (options.useOpenAICompatible && isOpenAICompatibleConfigured()) {
     const modelName = resolveOpenAICompatibleModel();
     try {
-      const provider = createOpenAICompatibleProvider();
-      const modelInstance = provider(modelName);
+      return await withAISpan({ operation: "structured-task", model: modelName, provider: "openai-compatible" }, async () => {
+        const provider = createOpenAICompatibleProvider();
+        const modelInstance = provider(modelName);
 
-      if (options.schema) {
-        const result = await generateText({
-          model: modelInstance,
-          output: Output.object({ schema: options.schema }),
-          ...(options.system ? { system: options.system } : {}),
-          prompt: options.prompt,
-          temperature: options.temperature ?? 0.2,
-        });
-        return { output: result.output as z.infer<TSchema>, modelUsed: modelName, fallbackCount: 0 };
-      } else {
-        const result = await generateText({
-          model: modelInstance,
-          ...(options.system ? { system: options.system } : {}),
-          prompt: options.prompt,
-          temperature: options.temperature ?? 0.2,
-        });
-        return { output: result.text as z.infer<TSchema>, modelUsed: modelName, fallbackCount: 0 };
-      }
+        if (options.schema) {
+          const result = await generateText({
+            model: modelInstance,
+            output: Output.object({ schema: options.schema }),
+            ...(options.system ? { system: options.system } : {}),
+            prompt: options.prompt,
+            temperature: options.temperature ?? 0.2,
+          });
+          const tokens = extractUsageTokens(result.usage);
+          recordSpanAttributes({
+            "gen_ai.usage.input_tokens":  tokens.promptTokens ?? 0,
+            "gen_ai.usage.output_tokens": tokens.completionTokens ?? 0,
+          });
+          return {
+            output: result.output as z.infer<TSchema>,
+            modelUsed: modelName,
+            fallbackCount: 0,
+            ...(tokens.promptTokens !== undefined ? { promptTokens: tokens.promptTokens } : {}),
+            ...(tokens.completionTokens !== undefined ? { completionTokens: tokens.completionTokens } : {}),
+          };
+        } else {
+          const result = await generateText({
+            model: modelInstance,
+            ...(options.system ? { system: options.system } : {}),
+            prompt: options.prompt,
+            temperature: options.temperature ?? 0.2,
+          });
+          const tokens = extractUsageTokens(result.usage);
+          recordSpanAttributes({
+            "gen_ai.usage.input_tokens":  tokens.promptTokens ?? 0,
+            "gen_ai.usage.output_tokens": tokens.completionTokens ?? 0,
+          });
+          return {
+            output: result.text as z.infer<TSchema>,
+            modelUsed: modelName,
+            fallbackCount: 0,
+            ...(tokens.promptTokens !== undefined ? { promptTokens: tokens.promptTokens } : {}),
+            ...(tokens.completionTokens !== undefined ? { completionTokens: tokens.completionTokens } : {}),
+          };
+        }
+      });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.warn(
@@ -278,15 +357,28 @@ export async function executeTextTask(
   if (options.useOpenAICompatible && isOpenAICompatibleConfigured()) {
     const modelName = resolveOpenAICompatibleModel();
     try {
-      const provider = createOpenAICompatibleProvider();
-      const modelInstance = provider(modelName);
-      const result = await generateText({
-        model: modelInstance,
-        ...(options.system ? { system: options.system } : {}),
-        prompt: options.prompt,
-        temperature: options.temperature ?? 0.2,
+      return await withAISpan({ operation: "text-task", model: modelName, provider: "openai-compatible" }, async () => {
+        const provider = createOpenAICompatibleProvider();
+        const modelInstance = provider(modelName);
+        const result = await generateText({
+          model: modelInstance,
+          ...(options.system ? { system: options.system } : {}),
+          prompt: options.prompt,
+          temperature: options.temperature ?? 0.2,
+        });
+        const tokens = extractUsageTokens(result.usage);
+        recordSpanAttributes({
+          "gen_ai.usage.input_tokens":  tokens.promptTokens ?? 0,
+          "gen_ai.usage.output_tokens": tokens.completionTokens ?? 0,
+        });
+        return {
+          output: result.text,
+          modelUsed: modelName,
+          fallbackCount: 0,
+          ...(tokens.promptTokens !== undefined ? { promptTokens: tokens.promptTokens } : {}),
+          ...(tokens.completionTokens !== undefined ? { completionTokens: tokens.completionTokens } : {}),
+        };
       });
-      return { output: result.text, modelUsed: modelName, fallbackCount: 0 };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.warn(
@@ -298,4 +390,7 @@ export async function executeTextTask(
   // Gemini cascade fallback
   return executeTextGeminiTask(options);
 }
+
+
+
 
