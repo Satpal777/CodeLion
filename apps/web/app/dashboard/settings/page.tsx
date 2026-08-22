@@ -1,13 +1,23 @@
+import { getServerEnv } from "@reviewer/config";
 import { Database, KeyRound, ShieldAlert } from "lucide-react";
 import { redirect } from "next/navigation";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../components/ui/card";
 import { getCurrentPrincipal } from "../../../lib/auth";
-import { deleteAccount } from "./actions";
+import { AIProviderCard } from "./ai-provider-card";
+import { deleteAccount, getAIProviderPreference } from "./actions";
 
 export default async function SettingsPage() {
   const principal = await getCurrentPrincipal();
   if (!principal) redirect("/login");
+
+  const env = getServerEnv();
+  const openAICompatibleConfigured =
+    Boolean(env.OPENAI_COMPATIBLE_BASE_URL) &&
+    Boolean(env.OPENAI_COMPATIBLE_API_KEY) &&
+    Boolean(env.OPENAI_COMPATIBLE_MODEL);
+
+  const currentProvider = openAICompatibleConfigured ? await getAIProviderPreference() : "gemini";
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -17,6 +27,14 @@ export default async function SettingsPage() {
         <p className="mt-2 text-slate-400">Security, retention and administrative operations.</p>
       </div>
       <div className="space-y-5">
+        {/* AI provider switch — only rendered when env vars are present */}
+        {openAICompatibleConfigured && (
+          <AIProviderCard
+            modelName={env.OPENAI_COMPATIBLE_MODEL!}
+            currentProvider={currentProvider}
+          />
+        )}
+
         <Card>
           <CardHeader className="flex-row gap-4">
             <KeyRound className="mt-1 size-5 text-cyan-300" />
@@ -77,3 +95,4 @@ export default async function SettingsPage() {
     </div>
   );
 }
+

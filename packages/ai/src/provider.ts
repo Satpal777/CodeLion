@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { createGoogleGenerativeAI, type GoogleGenerativeAIProvider } from "@ai-sdk/google";
+import { createOpenAI, type OpenAIProvider } from '@ai-sdk/openai';
 import { generateText, Output } from "ai";
 import { z } from "zod";
 
@@ -28,10 +29,66 @@ export function resolveGoogleApiKey(customKey?: string): string {
   return key.trim();
 }
 
+export function resolveOpenAIApiKey(customKey?: string): string {
+  const key =
+    customKey ||
+    process.env.OPENAI_API_KEY ||
+    process.env.AI_GATEWAY_API_KEY ||
+    "";
+  return key.trim();
+}
+
+export function openAICompatibleBaseUrl(): string {
+  return process.env.OPENAI_API_BASE_URL || process.env.AI_GATEWAY_API_BASE_URL || "https://api.openai.com/v1";
+}
+
 export function createGoogleProvider(apiKey?: string): GoogleGenerativeAIProvider {
   const key = resolveGoogleApiKey(apiKey);
   return createGoogleGenerativeAI({
     apiKey: key || "dev-placeholder-gemini-key",
+  });
+}
+
+export function createOpenAIProvider(apiKey?: string): OpenAIProvider {
+  const baseUrl = openAICompatibleBaseUrl();
+  const key = resolveOpenAIApiKey(apiKey);
+  const customObj: Record<string, unknown> = {};
+  baseUrl && (customObj["baseUrl"] = baseUrl);
+  key && (customObj["apiKey"] = key);
+  return createOpenAI(customObj);
+}
+
+// ---------------------------------------------------------------------------
+// OpenAI-Compatible provider helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns true when all three OpenAI-compatible env vars are present.
+ * Used to conditionally show the provider switch in the UI.
+ */
+export function isOpenAICompatibleConfigured(): boolean {
+  const baseUrl = (process.env.OPENAI_COMPATIBLE_BASE_URL ?? "").trim();
+  const apiKey = (process.env.OPENAI_COMPATIBLE_API_KEY ?? "").trim();
+  const model = (process.env.OPENAI_COMPATIBLE_MODEL ?? "").trim();
+  return Boolean(baseUrl && apiKey && model);
+}
+
+/**
+ * Resolves the OpenAI-compatible model name from env.
+ */
+export function resolveOpenAICompatibleModel(): string {
+  return (process.env.OPENAI_COMPATIBLE_MODEL ?? "").trim();
+}
+
+/**
+ * Creates an OpenAI-SDK provider pointed at the custom base URL and API key.
+ */
+export function createOpenAICompatibleProvider(): OpenAIProvider {
+  const baseUrl = (process.env.OPENAI_COMPATIBLE_BASE_URL ?? "").trim();
+  const apiKey = (process.env.OPENAI_COMPATIBLE_API_KEY ?? "").trim();
+  return createOpenAI({
+    ...(baseUrl ? { baseURL: baseUrl } : {}),
+    apiKey: apiKey || "placeholder",
   });
 }
 
@@ -157,3 +214,88 @@ export async function executeTextGeminiTask(
     .join("\n");
   throw new Error(`All Gemini models in fallback cascade failed:\n${errorDetails}`);
 }
+
+// ---------------------------------------------------------------------------
+// Provider-agnostic execution: OpenAI-compatible first → Gemini cascade
+// ---------------------------------------------------------------------------
+
+export interface GenericExecutionOptions<TSchema extends z.ZodTypeAny>
+  extends ModelExecutionOptions<TSchema> {
+  /** When true (and OPENAI_COMPATIBLE_* env vars are set), try the OpenAI-compatible model first. */
+  useOpenAICompatible?: boolean;
+}
+
+/**
+ * Structured task: tries the OpenAI-compatible model first when requested and
+ * configured, then falls back to the full Gemini cascade.
+ */
+export async function executeStructuredTask<TSchema extends z.ZodTypeAny>(
+  options: GenericExecutionOptions<TSchema>,
+): Promise<ModelExecutionResult<z.infer<TSchema>>> {
+  if (options.useOpenAICompatible && isOpenAICompatibleConfigured()) {
+    const modelName = resolveOpenAICompatibleModel();
+    try {
+      const provider = createOpenAICompatibleProvider();
+      const modelInstance = provider(modelName);
+
+      if (options.schema) {
+        const result = await generateText({
+          model: modelInstance,
+          output: Output.object({ schema: options.schema }),
+          ...(options.system ? { system: options.system } : {}),
+          prompt: options.prompt,
+          temperature: options.temperature ?? 0.2,
+        });
+        return { output: result.output as z.infer<TSchema>, modelUsed: modelName, fallbackCount: 0 };
+      } else {
+        const result = await generateText({
+          model: modelInstance,
+          ...(options.system ? { system: options.system } : {}),
+          prompt: options.prompt,
+          temperature: options.temperature ?? 0.2,
+        });
+        return { output: result.text as z.infer<TSchema>, modelUsed: modelName, fallbackCount: 0 };
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[OpenAI-Compatible] Model '${modelName}' failed (${message}). Falling back to Gemini cascade...`,
+      );
+    }
+  }
+
+  // Gemini cascade fallback
+  return executeStructuredGeminiTask(options);
+}
+
+/**
+ * Text task: tries the OpenAI-compatible model first when requested and
+ * configured, then falls back to the full Gemini cascade.
+ */
+export async function executeTextTask(
+  options: Omit<GenericExecutionOptions<any>, "schema">,
+): Promise<ModelExecutionResult<string>> {
+  if (options.useOpenAICompatible && isOpenAICompatibleConfigured()) {
+    const modelName = resolveOpenAICompatibleModel();
+    try {
+      const provider = createOpenAICompatibleProvider();
+      const modelInstance = provider(modelName);
+      const result = await generateText({
+        model: modelInstance,
+        ...(options.system ? { system: options.system } : {}),
+        prompt: options.prompt,
+        temperature: options.temperature ?? 0.2,
+      });
+      return { output: result.text, modelUsed: modelName, fallbackCount: 0 };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[OpenAI-Compatible] Model '${modelName}' failed (${message}). Falling back to Gemini cascade...`,
+      );
+    }
+  }
+
+  // Gemini cascade fallback
+  return executeTextGeminiTask(options);
+}
+

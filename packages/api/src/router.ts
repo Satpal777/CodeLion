@@ -1,4 +1,4 @@
-import { feedbackSchema, globalUsageTracker } from "@reviewer/ai";
+import { feedbackSchema, globalUsageTracker, isOpenAICompatibleConfigured } from "@reviewer/ai";
 import {
   auditEvents,
   feedbackEvents,
@@ -275,6 +275,30 @@ export const appRouter = router({
     getMetrics: protectedProcedure.query(({ ctx }) => {
       return globalUsageTracker.getWorkspaceUsage(ctx.principal.workspaceId);
     }),
+  }),
+
+  ai: router({
+    /**
+     * Returns the current AI provider configuration visible to the UI.
+     * Only exposes metadata — no keys are sent to the client.
+     */
+    config: protectedProcedure
+      .output(
+        z.object({
+          openAICompatible: z.object({
+            configured: z.boolean(),
+            modelName: z.string(),
+          }),
+          geminiCascadeLength: z.number(),
+        }),
+      )
+      .query(() => ({
+        openAICompatible: {
+          configured: isOpenAICompatibleConfigured(),
+          modelName: (process.env.OPENAI_COMPATIBLE_MODEL ?? "").trim(),
+        },
+        geminiCascadeLength: 9, // reflects GEMINI_MODEL_CASCADE length
+      })),
   }),
 
   feedback: router({

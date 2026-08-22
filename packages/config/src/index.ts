@@ -59,6 +59,10 @@ const serverEnvSchema = z.object({
   AI_REVIEW_MODEL: stringOrFallback("gemini-3.7-flash"),
   AI_SUMMARY_MODEL: stringOrFallback("gemini-3.7-flash"),
   AI_EMBEDDING_MODEL: stringOrFallback("text-embedding-004"),
+  // OpenAI-compatible provider (optional – enables the provider switch in the UI)
+  OPENAI_COMPATIBLE_BASE_URL: stringOrUndefined,
+  OPENAI_COMPATIBLE_API_KEY: stringOrUndefined,
+  OPENAI_COMPATIBLE_MODEL: stringOrUndefined,
   INNGEST_DEV: booleanString,
   INNGEST_EVENT_KEY: stringOrUndefined,
   INNGEST_SIGNING_KEY: stringOrUndefined,
