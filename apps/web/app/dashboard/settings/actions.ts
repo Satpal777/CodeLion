@@ -28,7 +28,7 @@ export async function deleteAccount(formData: FormData) {
 }
 
 /** Cookie name that persists the user's preferred AI provider. */
-export const AI_PROVIDER_COOKIE = "ai_provider_preference";
+const AI_PROVIDER_COOKIE = "ai_provider_preference";
 
 /**
  * Persists the selected AI provider in a cookie so server-side AI calls
