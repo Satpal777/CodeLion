@@ -91,6 +91,14 @@ export function createOpenAICompatibleProvider(): OpenAIProvider {
   return createOpenAI({
     ...(baseUrl ? { baseURL: baseUrl } : {}),
     apiKey: apiKey || "placeholder",
+    fetch: (url, options) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 45_000);
+      if (options?.signal) {
+        options.signal.addEventListener("abort", () => clearTimeout(timer));
+      }
+      return fetch(url, { ...options, signal: options?.signal ?? controller.signal }).finally(() => clearTimeout(timer));
+    },
   });
 }
 

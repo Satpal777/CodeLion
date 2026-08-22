@@ -2,6 +2,12 @@ import { appRouter } from "@reviewer/api";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { createTRPCContext } from "../../../../lib/trpc-context";
 
+/**
+ * Extends execution duration limit for Vercel serverless functions (up to 300 seconds).
+ */
+export const maxDuration = 300;
+export const dynamic = "force-dynamic";
+
 function handler(request: Request) {
   return fetchRequestHandler({
     endpoint: "/api/trpc",
@@ -15,3 +21,4 @@ function handler(request: Request) {
 }
 
 export { handler as GET, handler as POST };
+

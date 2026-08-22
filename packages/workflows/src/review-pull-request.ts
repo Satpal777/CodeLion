@@ -287,37 +287,35 @@ export const reviewPullRequestWorkflow = inngest.createFunction(
         })),
       );
 
-      const batchResults: ReviewResult[] = [];
+      const batchResults = await Promise.all(
+        reviewBatches.map(async (batch) => {
+          const batchPaths = batch.files.map((f) => f.path);
+          const batchContext = storedChunks.filter((c) => batchPaths.includes(c.path));
+          const symbolDeltas = enrichDiffWithCallersAndPrevState(batch.files, storedChunks);
 
-      for (const batch of reviewBatches) {
-        const batchPaths = batch.files.map((f) => f.path);
-        const batchContext = storedChunks.filter((c) => batchPaths.includes(c.path));
-        const symbolDeltas = enrichDiffWithCallersAndPrevState(batch.files, storedChunks);
-
-        const batchReview = await reviewPullRequest({
-          repository: `${repository.owner}/${repository.name}`,
-          pullRequestNumber: current.number,
-          title: `${current.title} (${batch.batchName})`,
-          description: current.body,
-          baseSha: current.baseSha,
-          headSha: current.headSha,
-          files: batch.files,
-          context: batchContext,
-          symbolDeltas,
-          memories: orderedMemories.map((memory) => ({
-            id: memory.id,
-            scope: memory.scope,
-            rule: memory.rule,
-            rationale: activeMemories.find((stored) => stored.id === memory.id)?.rationale ?? "Learned preference",
-          })),
-          trustedInstructions: repository.settings.customInstructions,
-          minimumConfidence: repository.settings.minimumConfidence,
-          model: env.AI_REVIEW_MODEL,
-          useOpenAICompatible: true,
-        });
-
-        batchResults.push(batchReview);
-      }
+          return reviewPullRequest({
+            repository: `${repository.owner}/${repository.name}`,
+            pullRequestNumber: current.number,
+            title: `${current.title} (${batch.batchName})`,
+            description: current.body,
+            baseSha: current.baseSha,
+            headSha: current.headSha,
+            files: batch.files,
+            context: batchContext,
+            symbolDeltas,
+            memories: orderedMemories.map((memory) => ({
+              id: memory.id,
+              scope: memory.scope,
+              rule: memory.rule,
+              rationale: activeMemories.find((stored) => stored.id === memory.id)?.rationale ?? "Learned preference",
+            })),
+            trustedInstructions: repository.settings.customInstructions,
+            minimumConfidence: repository.settings.minimumConfidence,
+            model: env.AI_REVIEW_MODEL,
+            useOpenAICompatible: true,
+          });
+        }),
+      );
 
       const aggregated = aggregateBatchReviewResults(batchResults, skippedFiles.length);
       recordSpanAttributes({
