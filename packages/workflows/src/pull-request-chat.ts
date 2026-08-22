@@ -13,7 +13,8 @@ import { createInstallationOctokit, getPullRequestContext } from "@reviewer/gith
 import {
   buildChatSystemPrompt,
   deriveMemoryCandidate,
-  executeTextGeminiTask,
+  executeTextTask,
+  extractFeedbackCandidateFromChat,
   formatChatReply,
   hybridRetrieve,
   isAuthorizedForAction,
@@ -338,9 +339,10 @@ export const pullRequestChatWorkflow = inngest.createFunction(
 
       let answer: string;
       try {
-        const { output } = await executeTextGeminiTask({
+        const { output } = await executeTextTask({
           system: systemPrompt,
           prompt: userPrompt,
+          useOpenAICompatible: true,
         });
         answer = output;
       } catch (err: unknown) {

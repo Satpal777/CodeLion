@@ -12,10 +12,10 @@ export default async function SettingsPage() {
   if (!principal) redirect("/login");
 
   const env = getServerEnv();
-  const openAICompatibleConfigured =
-    Boolean(env.OPENAI_COMPATIBLE_BASE_URL) &&
-    Boolean(env.OPENAI_COMPATIBLE_API_KEY) &&
-    Boolean(env.OPENAI_COMPATIBLE_MODEL);
+  const baseUrl = env.OPENAI_COMPATIBLE_BASE_URL || env.OPENAI_API_BASE_URL;
+  const apiKey = env.OPENAI_COMPATIBLE_API_KEY || env.OPENAI_API_KEY;
+  const modelName = env.OPENAI_COMPATIBLE_MODEL || env.OPENAI_MODEL;
+  const openAICompatibleConfigured = Boolean(baseUrl && apiKey && modelName);
 
   const currentProvider = openAICompatibleConfigured ? await getAIProviderPreference() : "gemini";
 
@@ -30,7 +30,7 @@ export default async function SettingsPage() {
         {/* AI provider switch — only rendered when env vars are present */}
         {openAICompatibleConfigured && (
           <AIProviderCard
-            modelName={env.OPENAI_COMPATIBLE_MODEL!}
+            modelName={modelName!}
             currentProvider={currentProvider}
           />
         )}

@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { createHash } from "node:crypto";
-import { executeStructuredGeminiTask, GEMINI_MODEL_CASCADE } from "./provider";
+import { executeStructuredTask, GEMINI_MODEL_CASCADE, recordSpanAttributes } from "./provider";
 import { modelReviewSchema, type Finding, type ReviewDecision, type ReviewResult } from "./schemas";
 import type { SymbolDeltaContext } from "./context-enricher";
 import { detectEcosystemFromSource, getSpecializedEcosystemRules } from "./indexer/ecosystem";
@@ -45,6 +45,7 @@ export interface ReviewRequest {
   trustedInstructions: string[];
   minimumConfidence?: number;
   model?: string;
+  useOpenAICompatible?: boolean;
 }
 
 function changedLines(patch: string | null, side: "RIGHT" | "LEFT"): Set<number> {
@@ -230,14 +231,23 @@ ${serializeUntrustedInput(request, {
 })}
 </UNTRUSTED_REPOSITORY_DATA>`;
 
-  const { output, modelUsed } = await executeStructuredGeminiTask({
+  const { output, modelUsed } = await executeStructuredTask({
     models,
     schema: modelReviewSchema,
     system,
     prompt,
+    useOpenAICompatible: request.useOpenAICompatible ?? true,
   });
 
-  return { ...validateModelReview(output, request.files, minimumConfidence), modelUsed };
+  const validated = validateModelReview(output, request.files, minimumConfidence);
+  recordSpanAttributes({
+    "reviewer.decision": validated.decision,
+    "reviewer.risk_score": validated.riskScore,
+    "reviewer.findings_count": validated.findings.length,
+    "reviewer.suppressed_count": validated.suppressedFindingCount,
+  });
+
+  return { ...validated, modelUsed };
 }
 
 export function renderReviewBody(result: ReviewResult): string {

@@ -4,6 +4,7 @@ import {
   evaluateSuggestionAccepted,
   orderApplicableMemories,
   partitionReviewBatches,
+  recordSpanAttributes,
   renderReviewBody,
   reviewPullRequest,
   type ReviewResult,
@@ -312,12 +313,19 @@ export const reviewPullRequestWorkflow = inngest.createFunction(
           trustedInstructions: repository.settings.customInstructions,
           minimumConfidence: repository.settings.minimumConfidence,
           model: env.AI_REVIEW_MODEL,
+          useOpenAICompatible: true,
         });
 
         batchResults.push(batchReview);
       }
 
-      return aggregateBatchReviewResults(batchResults, skippedFiles.length);
+      const aggregated = aggregateBatchReviewResults(batchResults, skippedFiles.length);
+      recordSpanAttributes({
+        "reviewer.decision": aggregated.decision,
+        "reviewer.risk_score": aggregated.riskScore,
+        "reviewer.findings_count": aggregated.findings.length,
+      });
+      return aggregated;
     });
 
     await step.run("persist-findings", async () => {

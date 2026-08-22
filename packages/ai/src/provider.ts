@@ -4,6 +4,7 @@ import { createOpenAI, type OpenAIProvider } from '@ai-sdk/openai';
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import { withAISpan, recordSpanAttributes } from "./observability/otel";
+export { withAISpan, recordSpanAttributes } from "./observability/otel";
 
 export const GEMINI_MODEL_CASCADE = [
   "gemini-3.7-flash",
@@ -68,9 +69,9 @@ export function createOpenAIProvider(apiKey?: string): OpenAIProvider {
  * Used to conditionally show the provider switch in the UI.
  */
 export function isOpenAICompatibleConfigured(): boolean {
-  const baseUrl = (process.env.OPENAI_COMPATIBLE_BASE_URL ?? "").trim();
-  const apiKey = (process.env.OPENAI_COMPATIBLE_API_KEY ?? "").trim();
-  const model = (process.env.OPENAI_COMPATIBLE_MODEL ?? "").trim();
+  const baseUrl = (process.env.OPENAI_COMPATIBLE_BASE_URL || process.env.OPENAI_API_BASE_URL || "").trim();
+  const apiKey = (process.env.OPENAI_COMPATIBLE_API_KEY || process.env.OPENAI_API_KEY || "").trim();
+  const model = (process.env.OPENAI_COMPATIBLE_MODEL || process.env.OPENAI_MODEL || "").trim();
   return Boolean(baseUrl && apiKey && model);
 }
 
@@ -78,15 +79,15 @@ export function isOpenAICompatibleConfigured(): boolean {
  * Resolves the OpenAI-compatible model name from env.
  */
 export function resolveOpenAICompatibleModel(): string {
-  return (process.env.OPENAI_COMPATIBLE_MODEL ?? "").trim();
+  return (process.env.OPENAI_COMPATIBLE_MODEL || process.env.OPENAI_MODEL || "").trim();
 }
 
 /**
  * Creates an OpenAI-SDK provider pointed at the custom base URL and API key.
  */
 export function createOpenAICompatibleProvider(): OpenAIProvider {
-  const baseUrl = (process.env.OPENAI_COMPATIBLE_BASE_URL ?? "").trim();
-  const apiKey = (process.env.OPENAI_COMPATIBLE_API_KEY ?? "").trim();
+  const baseUrl = (process.env.OPENAI_COMPATIBLE_BASE_URL || process.env.OPENAI_API_BASE_URL || "").trim();
+  const apiKey = (process.env.OPENAI_COMPATIBLE_API_KEY || process.env.OPENAI_API_KEY || "").trim();
   return createOpenAI({
     ...(baseUrl ? { baseURL: baseUrl } : {}),
     apiKey: apiKey || "placeholder",
